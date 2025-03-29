@@ -1,25 +1,25 @@
 #include "engine.hpp"
 #include <cassert>
 #include <iostream>
-#include <optional>
 
 // Test 0: Simple order lookup
 void test_lookup_order() {
   std::cout << "Test 0: Simple order lookup" << std::endl;
   Orderbook ob;
   Order sellOrder{1, 100, 10, Side::SELL};
-  std::optional<Order> order_lookup1 = lookup_order_by_id(ob, 1);
-  assert(!order_lookup1.has_value());
+  // Initially, order with id 1 should not exist.
+  assert(!order_exists(ob, 1));
 
   uint32_t matches = match_order(ob, sellOrder);
   assert(matches == 0);
 
-  std::optional<Order> order_lookup2 = lookup_order_by_id(ob, 1);
-  assert(order_lookup2.has_value());
-  assert(order_lookup2->id == 1);
-  assert(order_lookup2->price == 100);
-  assert(order_lookup2->quantity == 10);
-  assert(order_lookup2->side == Side::SELL);
+  // Now, order with id 1 should exist.
+  assert(order_exists(ob, 1));
+  Order order_lookup = lookup_order_by_id(ob, 1);
+  assert(order_lookup.id == 1);
+  assert(order_lookup.price == 100);
+  assert(order_lookup.quantity == 10);
+  assert(order_lookup.side == Side::SELL);
 
   std::cout << "Test 0 passed." << std::endl;
 }
@@ -39,14 +39,13 @@ void test_simple_match_and_modify() {
   assert(matches == 1); // one resting order matched
 
   // Remaining sell order should have quantity 5.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 1);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 5);
+  assert(order_exists(ob, 1));
+  Order order_lookup = lookup_order_by_id(ob, 1);
+  assert(order_lookup.quantity == 5);
 
   // Modify the remaining sell order.
   modify_order_by_id(ob, 1, 0);
-  order_lookup = lookup_order_by_id(ob, 1);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 1));
 
   std::cout << "Test 1 passed." << std::endl;
 }
@@ -69,20 +68,19 @@ void test_multiple_matches() {
   assert(matches == 2);
 
   // sellOrder1 should be fully matched; sellOrder2 partially matched (remaining quantity = 2).
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 4);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 2);
+  assert(order_exists(ob, 4));
+  Order order_lookup = lookup_order_by_id(ob, 4);
+  assert(order_lookup.quantity == 2);
 
   // Modify remaining order partially.
   modify_order_by_id(ob, 4, 1);
+  assert(order_exists(ob, 4));
   order_lookup = lookup_order_by_id(ob, 4);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 1);
+  assert(order_lookup.quantity == 1);
 
   // Fully modify the order.
   modify_order_by_id(ob, 4, 0);
-  order_lookup = lookup_order_by_id(ob, 4);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 4));
 
   std::cout << "Test 2 passed." << std::endl;
 }
@@ -102,9 +100,9 @@ void test_sell_order_matching_buy() {
   assert(matches == 1); // one resting order matched
 
   // Remaining buy order should have 6 quantity.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 6);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 6);
+  assert(order_exists(ob, 6));
+  Order order_lookup = lookup_order_by_id(ob, 6);
+  assert(order_lookup.quantity == 6);
 
   // Send another sell order to match the rest of the buy order.
   Order sellOrder2{8, 90, 7, Side::SELL};
@@ -112,11 +110,10 @@ void test_sell_order_matching_buy() {
   assert(matches == 1); // matched with the remaining buy order
 
   // The buy order should be removed, and sellOrder2 should have 1 unit left.
-  order_lookup = lookup_order_by_id(ob, 6);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 6));
+  assert(order_exists(ob, 8));
   order_lookup = lookup_order_by_id(ob, 8);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 1);
+  assert(order_lookup.quantity == 1);
 
   std::cout << "Test 3 passed." << std::endl;
 }
@@ -136,8 +133,7 @@ void test_full_fill_buy_order_exact_match() {
   assert(matches == 1);
 
   // Verify that the sell order is fully filled and removed.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 20);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 20));
 
   std::cout << "Test 4 passed." << std::endl;
 }
@@ -158,9 +154,9 @@ void test_partial_fill_buy_order_across_multiple_sell_levels() {
   assert(matches == 2);
 
   // sellOrder1 fully matched; sellOrder2 partially filled (remaining = 2).
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 23);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 2);
+  assert(order_exists(ob, 23));
+  Order order_lookup = lookup_order_by_id(ob, 23);
+  assert(order_lookup.quantity == 2);
 
   std::cout << "Test 5 passed." << std::endl;
 }
@@ -177,9 +173,9 @@ void test_modify_nonexistent_order() {
   modify_order_by_id(ob, 999, 0);
 
   // Verify the existing buy order remains unchanged.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 25);
-  assert(order_lookup.has_value());
-  assert(order_lookup->id == 25);
+  assert(order_exists(ob, 25));
+  Order order_lookup = lookup_order_by_id(ob, 25);
+  assert(order_lookup.id == 25);
 
   std::cout << "Test 6 passed." << std::endl;
 }
@@ -193,21 +189,20 @@ void test_partial_modification() {
   match_order(ob, sellOrder);
 
   // Record initial quantity.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 26);
-  assert(order_lookup.has_value());
-  int initialQuantity = order_lookup->quantity;
+  assert(order_exists(ob, 26));
+  Order order_lookup = lookup_order_by_id(ob, 26);
+  int initialQuantity = order_lookup.quantity;
   assert(initialQuantity == 10);
 
   // Partially modify (reduces quantity by setting it to 1).
   modify_order_by_id(ob, 26, 1);
+  assert(order_exists(ob, 26));
   order_lookup = lookup_order_by_id(ob, 26);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 1);
+  assert(order_lookup.quantity == 1);
 
   // Fully modify the remaining quantity.
   modify_order_by_id(ob, 26, 0);
-  order_lookup = lookup_order_by_id(ob, 26);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 26));
 
   std::cout << "Test 7 passed." << std::endl;
 }
@@ -228,13 +223,11 @@ void test_partial_fill_sell_order_across_multiple_buy_levels() {
   assert(matches == 2);
 
   // buyOrder1 fully matched; buyOrder2 partially filled (remaining = 3).
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 28);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 3);
-
+  assert(order_exists(ob, 28));
+  Order order_lookup = lookup_order_by_id(ob, 28);
+  assert(order_lookup.quantity == 3);
   // Verify that the buy order with id 27 is removed.
-  order_lookup = lookup_order_by_id(ob, 27);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 27));
 
   std::cout << "Test 8 passed." << std::endl;
 }
@@ -252,10 +245,8 @@ void test_exact_price_mismatch_no_fill() {
   match_order(ob, buyOrder);
 
   // Both orders should remain in their respective books.
-  std::optional<Order> order_lookup_sell = lookup_order_by_id(ob, 30);
-  std::optional<Order> order_lookup_buy = lookup_order_by_id(ob, 31);
-  assert(order_lookup_sell.has_value());
-  assert(order_lookup_buy.has_value());
+  assert(order_exists(ob, 30));
+  assert(order_exists(ob, 31));
 
   std::cout << "Test 9 passed." << std::endl;
 }
@@ -276,11 +267,10 @@ void test_multiple_partial_fills_same_level() {
   assert(matches == 2);
 
   // sellOrder1 fully matched; sellOrder2 partially filled (remaining = 2).
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 32);
-  assert(!order_lookup.has_value());
-  order_lookup = lookup_order_by_id(ob, 33);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 2);
+  assert(!order_exists(ob, 32));
+  assert(order_exists(ob, 33));
+  Order order_lookup = lookup_order_by_id(ob, 33);
+  assert(order_lookup.quantity == 2);
 
   std::cout << "Test 10 passed." << std::endl;
 }
@@ -296,27 +286,25 @@ void test_order_book_integrity_after_multiple_operations() {
   // Insert a sell order that partially fills the buy order.
   Order sellOrder1{36, 100, 5, Side::SELL};
   match_order(ob, sellOrder1);
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 35);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 5);
+  assert(order_exists(ob, 35));
+  Order order_lookup = lookup_order_by_id(ob, 35);
+  assert(order_lookup.quantity == 5);
 
   // Insert another sell order at a better price.
   Order sellOrder2{37, 95, 3, Side::SELL};
   match_order(ob, sellOrder2);
+  assert(order_exists(ob, 35));
   order_lookup = lookup_order_by_id(ob, 35);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 2);
+  assert(order_lookup.quantity == 2);
 
   // Modify the remaining buy order.
   modify_order_by_id(ob, 35, 0);
-  order_lookup = lookup_order_by_id(ob, 35);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 35));
 
   // Insert a new sell order that remains unmatched.
   Order sellOrder3{38, 100, 2, Side::SELL};
   match_order(ob, sellOrder3);
-  order_lookup = lookup_order_by_id(ob, 38);
-  assert(order_lookup.has_value());
+  assert(order_exists(ob, 38));
 
   std::cout << "Test 11 passed." << std::endl;
 }
@@ -337,9 +325,9 @@ void test_multiple_orders_same_side_ordering() {
   assert(matches == 1);
 
   // The first buy order (id 39) should be partially filled (5-3 = 2).
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 39);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 2);
+  assert(order_exists(ob, 39));
+  Order order_lookup = lookup_order_by_id(ob, 39);
+  assert(order_lookup.quantity == 2);
 
   std::cout << "Test 12 passed." << std::endl;
 }
@@ -358,8 +346,7 @@ void test_full_match_sell_order_exact_match() {
   assert(matches == 1);
 
   // Verify that the buy order is fully filled and removed.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 42);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 42));
 
   std::cout << "Test 13 passed." << std::endl;
 }
@@ -372,9 +359,9 @@ void test_modify_no_change() {
   match_order(ob, sellOrder);
   // Modify with the same quantity; order should remain unchanged.
   modify_order_by_id(ob, 50, 10);
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 50);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 10);
+  assert(order_exists(ob, 50));
+  Order order_lookup = lookup_order_by_id(ob, 50);
+  assert(order_lookup.quantity == 10);
   std::cout << "Test 14 passed." << std::endl;
 }
 
@@ -387,21 +374,21 @@ void test_modify_after_partial_fill() {
   Order sellOrder{52, 100, 4, Side::SELL};
   match_order(ob, sellOrder);
   // Resting buy order should now have a quantity of 6.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 51);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 6);
+  assert(order_exists(ob, 51));
+  Order order_lookup = lookup_order_by_id(ob, 51);
+  assert(order_lookup.quantity == 6);
   // Modify the resting buy order to a quantity of 3.
   modify_order_by_id(ob, 51, 3);
+  assert(order_exists(ob, 51));
   order_lookup = lookup_order_by_id(ob, 51);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 3);
+  assert(order_lookup.quantity == 3);
   // Insert a sell order that exactly matches the modified buy order.
   Order sellOrder2{53, 90, 3, Side::SELL};
   uint32_t matches = match_order(ob, sellOrder2);
   assert(matches == 1);
   // The buy order should be fully matched and removed.
-  order_lookup = lookup_order_by_id(ob, 51);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 51));
+
   std::cout << "Test 15 passed." << std::endl;
 }
 
@@ -421,11 +408,11 @@ void test_modify_preserves_fifo() {
   uint32_t matches = match_order(ob, buyOrder);
   assert(matches == 2);
   // sellOrderA (modified) should be fully filled (3), and sellOrderB should be partially filled (remaining = 4).
-  std::optional<Order> order_lookupA = lookup_order_by_id(ob, 54);
-  assert(!order_lookupA.has_value());
-  std::optional<Order> order_lookupB = lookup_order_by_id(ob, 55);
-  assert(order_lookupB.has_value());
-  assert(order_lookupB->quantity == 4);
+  assert(!order_exists(ob, 54));
+  assert(order_exists(ob, 55));
+  Order order_lookup = lookup_order_by_id(ob, 55);
+  assert(order_lookup.quantity == 4);
+
   std::cout << "Test 16 passed." << std::endl;
 }
 
@@ -437,21 +424,21 @@ void test_multiple_modifications() {
   match_order(ob, buyOrder);
   // First modification: reduce quantity to 8.
   modify_order_by_id(ob, 57, 8);
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 57);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 8);
+  assert(order_exists(ob, 57));
+  Order order_lookup = lookup_order_by_id(ob, 57);
+  assert(order_lookup.quantity == 8);
   // Second modification: reduce quantity to 5.
   modify_order_by_id(ob, 57, 5);
+  assert(order_exists(ob, 57));
   order_lookup = lookup_order_by_id(ob, 57);
-  assert(order_lookup.has_value());
-  assert(order_lookup->quantity == 5);
+  assert(order_lookup.quantity == 5);
   // Insert a sell order that exactly matches the final modified quantity.
   Order sellOrder{58, 100, 5, Side::SELL};
   uint32_t matches = match_order(ob, sellOrder);
   assert(matches == 1);
   // The buy order should now be fully matched and removed.
-  order_lookup = lookup_order_by_id(ob, 57);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 57));
+
   std::cout << "Test 17 passed." << std::endl;
 }
 
@@ -467,8 +454,7 @@ void test_modify_with_zero_removes_order() {
   modify_order_by_id(ob, 60, 0);
 
   // Verify that the order is removed.
-  std::optional<Order> order_lookup = lookup_order_by_id(ob, 60);
-  assert(!order_lookup.has_value());
+  assert(!order_exists(ob, 60));
 
   std::cout << "Test 18 passed." << std::endl;
 }

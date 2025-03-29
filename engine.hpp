@@ -25,6 +25,8 @@ struct Orderbook {
   std::map<PriceType, std::list<Order>> sellOrders;
 };
 
+extern "C" {
+
 // These are the two functions you must optimize
 //////////////////////////////////////////////////////////////
 
@@ -39,4 +41,6 @@ void modify_order_by_id(Orderbook &orderbook, IdType order_id,
 //////////////////////////////////////////////////////////////
 
 // Performance of this does not matter. It is only used to check correctness
-std::optional<Order> lookup_order_by_id(Orderbook &orderbook, IdType order_id);
+Order lookup_order_by_id(Orderbook &orderbook, IdType order_id);
+bool order_exists(Orderbook &orderbook, IdType order_id);
+}

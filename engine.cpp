@@ -1,5 +1,6 @@
 #include "engine.hpp"
 #include <functional>
+#include <stdexcept>
 
 // This is an example correct implementation
 // It is INTENTIONALLY suboptimal
@@ -98,12 +99,17 @@ std::optional<Order> lookup_order_in_map(OrderMap &ordersMap, IdType order_id) {
   return std::nullopt;
 }
 
-std::optional<Order> lookup_order_by_id(Orderbook &orderbook, IdType order_id) {
+Order lookup_order_by_id(Orderbook &orderbook, IdType order_id) {
   auto order1 = lookup_order_in_map(orderbook.buyOrders, order_id);
   auto order2 = lookup_order_in_map(orderbook.sellOrders, order_id);
   if (order1.has_value())
-    return order1;
+    return *order1;
   if (order2.has_value())
-    return order2;
-  return std::nullopt;
+    return *order2;
+  throw std::runtime_error("Order not found");
+}
+bool order_exists(Orderbook &orderbook, IdType order_id) {
+  auto order1 = lookup_order_in_map(orderbook.buyOrders, order_id);
+  auto order2 = lookup_order_in_map(orderbook.sellOrders, order_id);
+  return (order1.has_value() || order2.has_value());
 }
