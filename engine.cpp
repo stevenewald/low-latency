@@ -113,3 +113,5 @@ bool order_exists(Orderbook &orderbook, IdType order_id) {
   auto order2 = lookup_order_in_map(orderbook.sellOrders, order_id);
   return (order1.has_value() || order2.has_value());
 }
+
+Orderbook *create_orderbook() { return new Orderbook; }
