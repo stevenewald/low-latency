@@ -1,18 +1,19 @@
 # Low Latency League
 
-Welcome to the low latency league! This is an internal NUFT challenge to see who can make the fastest matching engine. 
+Welcome to the Low Latency League — NUFT’s internal challenge to build the fastest matching engine.
 
-# Testing
+## Testing
 
-The premise is simple: optimize the provided matching engine. Your submission must pass all tests (`make test`) to be considered. 
+Your job is simple: optimize the provided engine. Your code **must pass all tests** (`make test`) to qualify.
 
-# Benchmarking
+## Benchmarking
 
-Submit your submission for benchmarking via scholes. There is a live leaderboard, but you can choose to remain anonymous.
+Submit your code for benchmarking through *scholes*. A live leaderboard tracks results — you can choose to stay anonymous.
 
-Benchmarks will call your orderbook functions (add, remove, match, etc). They are designed to somewhat reflect real world conditions. For example, during times of high volatility, we may see XYZ finish this.
+Benchmarks simulate realistic trading conditions. For example, during high volatility, you may see XYZ spike.
 
-# Guidelines
-1. Anything *within reason* is allowed. There are no preset memory limits, limited libraries, etc. I trust you to use your judgement. Adding libraries like Abseil is fine, 5G memory usage is fine, but rewriting in Rust and using 64G memory is not.
-2. You cannot change function signatures in engine.hpp. Anything else is fine.
-3. Please don't try to break things (particularly the leaderboard). Use your judgement
+## Guidelines
+
+1. Anything *reasonable* is fair game. There are no strict memory limits or library restrictions. Add Abseil? Sure. Use 5GB RAM? Fine. Rewriting in Rust with 64GB? Not fine.  
+2. You **must not** change any function signatures in `engine.hpp`. Everything else is open.  
+3. Don’t try to break things (especially the leaderboard). Use common sense.
