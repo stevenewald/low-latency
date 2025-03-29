@@ -8,9 +8,8 @@ test: tests.cpp
 	./tests
 
 build-submission: engine.cpp
-	$(CXX) $(CXXFLAGS) -c engine.cpp -o engine.o
+	$(CXX) $(CXXFLAGS) -fPIC -c engine.cpp -o engine.o
 	$(CXX) $(CXXFLAGS) -shared -o engine.so engine.o
 
 clean:
-	rm -f tests
-
+	rm -f tests engine.o engine.so
