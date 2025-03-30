@@ -36,7 +36,11 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming);
 void modify_order_by_id(Orderbook &orderbook, IdType order_id,
                         QuantityType new_quantity);
 
-// Performance of this does not matter. It is only used to check correctness
+// Returns total resting volume at a given price point
+uint32_t get_volume_at_level(Orderbook &orderbook, Side side,
+                             PriceType quantity);
+
+// Performance of these do not matter. They are only used to check correctness
 Order lookup_order_by_id(Orderbook &orderbook, IdType order_id);
 bool order_exists(Orderbook &orderbook, IdType order_id);
 Orderbook *create_orderbook();

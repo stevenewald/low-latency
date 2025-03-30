@@ -99,6 +99,30 @@ std::optional<Order> lookup_order_in_map(OrderMap &ordersMap, IdType order_id) {
   return std::nullopt;
 }
 
+uint32_t get_volume_at_level(Orderbook &orderbook, Side side,
+                             PriceType quantity) {
+  uint32_t total = 0;
+  if (side == Side::BUY) {
+    auto buy_orders = orderbook.buyOrders.find(quantity);
+    if (buy_orders == orderbook.buyOrders.end()) {
+      return 0;
+    }
+    for (const auto &order : buy_orders->second) {
+      total += order.quantity;
+    }
+  } else if (side == Side::SELL) {
+    auto sell_orders = orderbook.sellOrders.find(quantity);
+    if (sell_orders == orderbook.sellOrders.end()) {
+      return 0;
+    }
+    for (const auto &order : sell_orders->second) {
+      total += order.quantity;
+    }
+  }
+  return total;
+}
+
+// Functions below here don't need to be performant. Just make sure they're correct
 Order lookup_order_by_id(Orderbook &orderbook, IdType order_id) {
   auto order1 = lookup_order_in_map(orderbook.buyOrders, order_id);
   auto order2 = lookup_order_in_map(orderbook.sellOrders, order_id);
@@ -108,6 +132,7 @@ Order lookup_order_by_id(Orderbook &orderbook, IdType order_id) {
     return *order2;
   throw std::runtime_error("Order not found");
 }
+
 bool order_exists(Orderbook &orderbook, IdType order_id) {
   auto order1 = lookup_order_in_map(orderbook.buyOrders, order_id);
   auto order2 = lookup_order_in_map(orderbook.sellOrders, order_id);
