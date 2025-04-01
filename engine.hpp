@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <list>
 #include <map>
-#include <optional>
 
 enum class Side : uint8_t { BUY, SELL };
 

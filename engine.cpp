@@ -1,5 +1,6 @@
 #include "engine.hpp"
 #include <functional>
+#include <optional>
 #include <stdexcept>
 
 // This is an example correct implementation
@@ -122,7 +123,8 @@ uint32_t get_volume_at_level(Orderbook &orderbook, Side side,
   return total;
 }
 
-// Functions below here don't need to be performant. Just make sure they're correct
+// Functions below here don't need to be performant. Just make sure they're
+// correct
 Order lookup_order_by_id(Orderbook &orderbook, IdType order_id) {
   auto order1 = lookup_order_in_map(orderbook.buyOrders, order_id);
   auto order2 = lookup_order_in_map(orderbook.sellOrders, order_id);
