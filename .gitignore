@@ -1,3 +1,5 @@
 tests
 engine.so
 engine.o
+.cache
+compile_commands.json

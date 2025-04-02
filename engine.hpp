@@ -1,8 +1,12 @@
 #pragma once
 
+#include <boost/container/stable_vector.hpp>
 #include <cstdint>
+#include <functional>
+#include <limits>
 #include <list>
 #include <map>
+#include <unordered_map>
 
 enum class Side : uint8_t { BUY, SELL };
 
@@ -18,10 +22,21 @@ struct Order {
   Side side;
 };
 
+using OrderList = boost::container::stable_vector<Order>;
+using OrderIt = OrderList::iterator;
+using OrderIdMap = std::unordered_map<IdType, OrderIt>;
+
+using PriceVolumeMap =
+    std::array<uint32_t, std::numeric_limits<PriceType>::max()>;
+
 // You CAN and SHOULD change this
 struct Orderbook {
-  std::map<PriceType, std::list<Order>, std::greater<PriceType>> buyOrders;
-  std::map<PriceType, std::list<Order>> sellOrders;
+  std::map<PriceType, OrderList, std::greater<PriceType>> buyOrders{};
+  std::map<PriceType, OrderList> sellOrders{};
+  OrderIdMap buyorders{};
+  OrderIdMap sellorders{};
+  PriceVolumeMap buyVolume{0};
+  PriceVolumeMap sellVolume{0};
 };
 
 extern "C" {
