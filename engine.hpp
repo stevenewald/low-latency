@@ -1,17 +1,17 @@
 #pragma once
 
-#include <boost/container/stable_vector.hpp>
 #include <absl/container/btree_map.h>
 #include <absl/container/flat_hash_map.h>
+#include <array>
+#include <boost/container/stable_vector.hpp>
 #include <cstdint>
 #include <functional>
 #include <limits>
 #include <list>
 #include <map>
-#include <array>
 #include <unordered_map>
 
-enum class Side : uint8_t { BUY, SELL };
+enum class Side : uint8_t { BUY = 0, SELL = 1 };
 
 using IdType = uint32_t;
 using PriceType = uint16_t;
@@ -30,15 +30,14 @@ using OrderIt = OrderList::iterator;
 using OrderIdMap = std::array<std::optional<Order>, 100000>;
 
 using PriceVolumeMap =
-    std::array<uint32_t, std::numeric_limits<PriceType>::max()>;
+    std::array<uint32_t[2], std::numeric_limits<PriceType>::max()>;
 
 // You CAN and SHOULD change this
 struct Orderbook {
   std::map<PriceType, OrderList, std::greater<PriceType>> buyOrders{};
   std::map<PriceType, OrderList> sellOrders{};
   OrderIdMap orders{};
-  PriceVolumeMap buyVolume{0};
-  PriceVolumeMap sellVolume{0};
+  PriceVolumeMap volume{};
 };
 
 extern "C" {

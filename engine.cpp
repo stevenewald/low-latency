@@ -1,6 +1,5 @@
 #include "engine.hpp"
 #include <functional>
-#include <iostream>
 #include <optional>
 #include <stdexcept>
 
@@ -11,7 +10,7 @@
 // Templated helper to process matching orders.
 // The Condition predicate takes the price level and the incoming order price
 // and returns whether the level qualifies.
-template <typename OrderMap, typename Condition>
+template <uint8_t si, typename OrderMap, typename Condition>
 uint32_t process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
                         PriceVolumeMap &pvm, Condition cond) {
   uint32_t matchCount = 0;
@@ -25,13 +24,13 @@ uint32_t process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
       QuantityType trade = std::min(order.quantity, order2.quantity);
       order.quantity -= trade;
       order2.quantity -= trade;
-      pvm[order2.price] -= trade;
+      pvm[order2.price][si] -= trade;
       ++matchCount;
       if (order2.quantity == 0) {
         orderIt = ordersAtPrice.erase(orderIt);
         idMap[order2.id] = std::nullopt;
       } else {
-        ++orderIt;
+        break;
       }
     }
     if (ordersAtPrice.empty())
@@ -48,23 +47,24 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
 
   if (order.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
-    matchCount = process_orders(order, orderbook.sellOrders, orderbook.orders,
-                                orderbook.sellVolume, std::less<>());
+    matchCount =
+        process_orders<1>(order, orderbook.sellOrders, orderbook.orders,
+                          orderbook.volume, std::less<>());
     if (order.quantity > 0) {
       auto [it, ins] = orderbook.buyOrders.emplace(order.price, OrderList());
       it->second.push_back(order.id);
       orderbook.orders[order.id] = order;
-      orderbook.buyVolume[order.price] += order.quantity;
+      orderbook.volume[order.price][0] += order.quantity;
     }
   } else { // Side::SELL
     // For a SELL, match with buy orders priced at or above the order's price.
-    matchCount = process_orders(order, orderbook.buyOrders, orderbook.orders,
-                                orderbook.buyVolume, std::greater<>());
+    matchCount = process_orders<0>(order, orderbook.buyOrders, orderbook.orders,
+                                   orderbook.volume, std::greater<>());
     if (order.quantity > 0) {
       auto [it, ins] = orderbook.sellOrders.emplace(order.price, OrderList());
       it->second.push_back(order.id);
       orderbook.orders[order.id] = order;
-      orderbook.sellVolume[order.price] += order.quantity;
+      orderbook.volume[order.price][1] += order.quantity;
     }
   }
   return matchCount;
@@ -73,15 +73,13 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
 // Templated helper to cancel an order within a given orders map.
 template <typename OrderMap>
 bool modify_order_in_map(Order &order, OrderMap &ordersMap,
-                         PriceVolumeMap &volMap, QuantityType new_quantity) {
+                         QuantityType new_quantity) {
   auto price = order.price;
-  volMap[price] -= order.quantity;
   if (new_quantity != 0) [[likely]] {
     order.quantity = new_quantity;
-    volMap[price] += new_quantity;
   } else {
     auto &priceList = ordersMap.at(price);
-    priceList.erase(priceList.begin() + order.id);
+    // priceList.erase(priceList.begin() + order.id);
     if (priceList.size() == 0) {
       ordersMap.erase(price);
     }
@@ -95,22 +93,18 @@ void modify_order_by_id(Orderbook &orderbook, IdType order_id,
   if (!order_opt)
     return;
   auto &order = order_opt.value();
+  orderbook.volume[order.price][static_cast<uint8_t>(order.side)] +=
+      (new_quantity - order.quantity);
   if (order.side == Side::BUY) {
-    modify_order_in_map(order, orderbook.buyOrders, orderbook.buyVolume,
-                        new_quantity);
+    modify_order_in_map(order, orderbook.buyOrders, new_quantity);
   } else {
-    modify_order_in_map(order, orderbook.sellOrders, orderbook.sellVolume,
-                        new_quantity);
+    modify_order_in_map(order, orderbook.sellOrders, new_quantity);
   }
 }
 
 uint32_t get_volume_at_level(Orderbook &orderbook, Side side, PriceType price) {
   uint32_t total = 0;
-  if (side == Side::BUY) {
-    return orderbook.buyVolume[price];
-  } else if (side == Side::SELL) {
-    return orderbook.sellVolume[price];
-  }
+  return orderbook.volume[price][static_cast<uint8_t>(side)];
   return total;
 }
 
