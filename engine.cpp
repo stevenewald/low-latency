@@ -80,7 +80,7 @@ bool modify_order_in_map(OrderMap &ordersMap, IdType order_id,
   }
   auto price = it->second->price;
   volMap[price] -= it->second->quantity;
-  if (new_quantity != 0) {
+  if (new_quantity != 0) [[likely]] {
     it->second->quantity = new_quantity;
     volMap[price] += new_quantity;
   } else {

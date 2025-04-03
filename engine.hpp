@@ -1,6 +1,8 @@
 #pragma once
 
 #include <boost/container/stable_vector.hpp>
+#include <absl/container/btree_map.h>
+#include <absl/container/flat_hash_map.h>
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -24,7 +26,7 @@ struct Order {
 
 using OrderList = boost::container::stable_vector<Order>;
 using OrderIt = OrderList::iterator;
-using OrderIdMap = std::unordered_map<IdType, OrderIt>;
+using OrderIdMap = absl::flat_hash_map<IdType, OrderIt>;
 
 using PriceVolumeMap =
     std::array<uint32_t, std::numeric_limits<PriceType>::max()>;
