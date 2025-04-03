@@ -8,6 +8,7 @@
 #include <limits>
 #include <list>
 #include <map>
+#include <array>
 #include <unordered_map>
 
 enum class Side : uint8_t { BUY, SELL };
@@ -24,9 +25,9 @@ struct Order {
   Side side;
 };
 
-using OrderList = boost::container::stable_vector<Order>;
+using OrderList = std::vector<IdType>;
 using OrderIt = OrderList::iterator;
-using OrderIdMap = absl::flat_hash_map<IdType, OrderIt>;
+using OrderIdMap = std::array<std::optional<Order>, 100000>;
 
 using PriceVolumeMap =
     std::array<uint32_t, std::numeric_limits<PriceType>::max()>;
@@ -35,8 +36,7 @@ using PriceVolumeMap =
 struct Orderbook {
   std::map<PriceType, OrderList, std::greater<PriceType>> buyOrders{};
   std::map<PriceType, OrderList> sellOrders{};
-  OrderIdMap buyorders{};
-  OrderIdMap sellorders{};
+  OrderIdMap orders{};
   PriceVolumeMap buyVolume{0};
   PriceVolumeMap sellVolume{0};
 };

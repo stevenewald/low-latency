@@ -45,6 +45,6 @@ set_target_properties(engine_shared PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Custom target for submission: copy shared library to engine.so and run lll-bench
 add_custom_target(submit
   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:engine_shared> ${CMAKE_CURRENT_SOURCE_DIR}/engine.so
-  COMMAND lll-bench ${CMAKE_CURRENT_SOURCE_DIR}/build/libengine_shared.so
+  COMMAND lll-bench ${CMAKE_CURRENT_SOURCE_DIR}/build/libengine_shared.so -d 1
 )
 
