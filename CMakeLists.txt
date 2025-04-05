@@ -14,6 +14,7 @@ include_directories(${BOOST_INCLUDE})
 link_directories(${BOOST_LIB})
 
 find_package(absl REQUIRED)
+find_package(folly REQUIRED)
 
 # Common compiler flags
 add_compile_options(
@@ -27,6 +28,7 @@ add_compile_options(
 # Create tests executable from tests.cpp and engine.cpp
 add_executable(tests tests.cpp engine.cpp)
 target_link_libraries(tests boost_system boost_filesystem)
+target_link_libraries(tests folly::folly)
 target_link_libraries(tests absl::base absl::throw_delegate absl::flat_hash_map)
 
 # Custom target to run tests after building
@@ -39,12 +41,12 @@ add_custom_target(run_tests
 # Build a shared library from engine.cpp for submission
 add_library(engine_shared SHARED engine.cpp)
 target_link_libraries(engine_shared boost_system boost_filesystem)
-target_link_libraries(engine_shared absl::base absl::throw_delegate absl::flat_hash_map)
+target_link_libraries(engine_shared absl::base absl::throw_delegate absl::flat_hash_map folly::folly)
 set_target_properties(engine_shared PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Custom target for submission: copy shared library to engine.so and run lll-bench
 add_custom_target(submit
   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:engine_shared> ${CMAKE_CURRENT_SOURCE_DIR}/engine.so
-  COMMAND lll-bench ${CMAKE_CURRENT_SOURCE_DIR}/build/libengine_shared.so -d 1
+  COMMAND lll-bench ${CMAKE_CURRENT_SOURCE_DIR}/libengine_shared.so -d 1
 )
 

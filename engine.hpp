@@ -7,9 +7,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <list>
-#include <map>
-#include <unordered_map>
+
 
 enum class Side : uint8_t { BUY = 0, SELL = 1 };
 
@@ -34,10 +32,11 @@ using PriceVolumeMap =
 
 // You CAN and SHOULD change this
 struct Orderbook {
-  std::map<PriceType, OrderList, std::greater<PriceType>> buyOrders{};
-  std::map<PriceType, OrderList> sellOrders{};
-  OrderIdMap orders{};
-  PriceVolumeMap volume{};
+  alignas(256) absl::btree_map<PriceType, OrderList,
+                               std::greater<PriceType>> buyOrders{};
+  alignas(256) absl::btree_map<PriceType, OrderList> sellOrders{};
+  alignas(256) OrderIdMap orders{};
+  alignas(256) PriceVolumeMap volume{};
 };
 
 extern "C" {

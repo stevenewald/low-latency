@@ -10,13 +10,13 @@
 // Templated helper to process matching orders.
 // The Condition predicate takes the price level and the incoming order price
 // and returns whether the level qualifies.
-template <uint8_t si, typename OrderMap, typename Condition>
+template <uint8_t si, typename Condition, typename OrderMap>
 uint32_t process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
-                        PriceVolumeMap &pvm, Condition cond) {
+                        PriceVolumeMap &pvm) {
   uint32_t matchCount = 0;
   auto it = ordersMap.begin();
   while (it != ordersMap.end() && order.quantity > 0 &&
-         (it->first == order.price || cond(it->first, order.price))) {
+         (it->first == order.price || Condition()(it->first, order.price))) {
     auto &ordersAtPrice = it->second;
     for (auto orderIt = ordersAtPrice.begin();
          order.quantity > 0 && orderIt != ordersAtPrice.end();) {
@@ -27,8 +27,8 @@ uint32_t process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
       pvm[order2.price][si] -= trade;
       ++matchCount;
       if (order2.quantity == 0) {
-        orderIt = ordersAtPrice.erase(orderIt);
         idMap[order2.id] = std::nullopt;
+        orderIt = ordersAtPrice.erase(orderIt);
       } else {
         break;
       }
@@ -47,22 +47,19 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
 
   if (order.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
-    matchCount =
-        process_orders<1>(order, orderbook.sellOrders, orderbook.orders,
-                          orderbook.volume, std::less<>());
+    matchCount = process_orders<1, std::less<PriceType>>(
+        order, orderbook.sellOrders, orderbook.orders, orderbook.volume);
     if (order.quantity > 0) {
-      auto [it, ins] = orderbook.buyOrders.emplace(order.price, OrderList());
-      it->second.push_back(order.id);
+      orderbook.buyOrders[order.price].emplace_back(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][0] += order.quantity;
     }
   } else { // Side::SELL
     // For a SELL, match with buy orders priced at or above the order's price.
-    matchCount = process_orders<0>(order, orderbook.buyOrders, orderbook.orders,
-                                   orderbook.volume, std::greater<>());
+    matchCount = process_orders<0, std::greater<PriceType>>(
+        order, orderbook.buyOrders, orderbook.orders, orderbook.volume);
     if (order.quantity > 0) {
-      auto [it, ins] = orderbook.sellOrders.emplace(order.price, OrderList());
-      it->second.push_back(order.id);
+      orderbook.sellOrders[order.price].emplace_back(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][1] += order.quantity;
     }
@@ -72,17 +69,14 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
 
 // Templated helper to cancel an order within a given orders map.
 template <typename OrderMap>
-bool modify_order_in_map(Order &order, OrderMap &ordersMap,
+bool modify_order_in_map(Order &order, OrderIdMap &ordersMap, OrderMap &mp,
                          QuantityType new_quantity) {
-  auto price = order.price;
-  if (new_quantity != 0) [[likely]] {
+  if (new_quantity != 0) {
     order.quantity = new_quantity;
   } else {
-    auto &priceList = ordersMap.at(price);
-    // priceList.erase(priceList.begin() + order.id);
-    if (priceList.size() == 0) {
-      ordersMap.erase(price);
-    }
+    mp[order.price].erase(
+        std::find(mp[order.price].begin(), mp[order.price].end(), order.id));
+    ordersMap[order.id] = std::nullopt;
   }
   return true;
 }
@@ -96,9 +90,11 @@ void modify_order_by_id(Orderbook &orderbook, IdType order_id,
   orderbook.volume[order.price][static_cast<uint8_t>(order.side)] +=
       (new_quantity - order.quantity);
   if (order.side == Side::BUY) {
-    modify_order_in_map(order, orderbook.buyOrders, new_quantity);
+    modify_order_in_map(order, orderbook.orders, orderbook.buyOrders,
+                        new_quantity);
   } else {
-    modify_order_in_map(order, orderbook.sellOrders, new_quantity);
+    modify_order_in_map(order, orderbook.orders, orderbook.sellOrders,
+                        new_quantity);
   }
 }
 
