@@ -42,30 +42,31 @@ template <typename T, std::size_t Capacity> class ringbuf {
 public:
   static_assert(Capacity > 0, "Capacity must be greater than 0");
 
-  explicit ringbuf(IdType *ptr) : buffer_(ptr) {}
+  __attribute__((always_inline)) inline explicit ringbuf(IdType *ptr)
+      : buffer_(ptr) {}
 
-  void push(const T &item) {
+  __attribute__((always_inline)) inline void push(T item) {
     auto next_head = (head_ + 1) % Capacity;
 
     buffer_[head_] = item;
     head_ = next_head;
   }
 
-  void pop() { tail_ = (tail_ + 1) % Capacity; }
+  __attribute__((always_inline)) inline void pop() {
+    tail_ = (tail_ + 1) % Capacity;
+  }
 
-  T &front() { return buffer_[tail_]; }
+  __attribute__((always_inline)) inline T front() { return buffer_[tail_]; }
 
-  [[nodiscard]] bool empty() const { return head_ == tail_; }
+  __attribute__((always_inline)) inline bool empty() const {
+    return head_ == tail_;
+  }
 
-  [[nodiscard]] std::size_t size() const {
+  __attribute__((always_inline)) inline std::size_t size() const {
     return (head_ + Capacity - tail_) % Capacity;
   }
 
-  [[nodiscard]] constexpr std::size_t capacity() const {
-    return Capacity - 1; // actual usable capacity
-  }
-
-  void erase(const T &item) {
+  __attribute__((always_inline)) inline void erase(T item) {
     std::size_t index = tail_;
 
     for (std::size_t count = 0; count < size(); ++count) {
@@ -87,8 +88,8 @@ public:
   }
 
   T *buffer_{};
-  uint32_t head_ = 0;
-  uint32_t tail_ = 0;
+  uint64_t head_ = 0;
+  uint64_t tail_ = 0;
 };
 
 using OrderList = ringbuf<IdType, cap2>;
