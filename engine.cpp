@@ -58,10 +58,8 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
         orderbook.volume, orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      auto it = orderbook.buyOrders.find(order.price);
-      if (it == orderbook.buyOrders.end()) {
-        it = orderbook.buyOrders.emplace(order.price, orderbook.frees).first;
-      }
+      auto it =
+          orderbook.buyOrders.try_emplace(order.price, orderbook.frees).first;
       it->second.push(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][0] += order.quantity;
@@ -73,10 +71,8 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
         orderbook.volume, orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      auto it = orderbook.sellOrders.find(order.price);
-      if (it == orderbook.sellOrders.end()) {
-        it = orderbook.sellOrders.emplace(order.price, orderbook.frees).first;
-      }
+      auto it =
+          orderbook.sellOrders.try_emplace(order.price, orderbook.frees).first;
       it->second.push(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][1] += order.quantity;

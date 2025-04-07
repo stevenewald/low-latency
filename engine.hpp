@@ -71,24 +71,14 @@ public:
     return Capacity - 1; // actual usable capacity
   }
 
-  bool erase(const T &item) {
-    if (empty()) {
-      return false;
-    }
-
+  void erase(const T &item) {
     std::size_t index = tail_;
-    bool found = false;
 
     for (std::size_t count = 0; count < size(); ++count) {
       if (buffer_[index] == item) {
-        found = true;
         break;
       }
       index = (index + 1) % Capacity;
-    }
-
-    if (!found) {
-      return false;
     }
 
     while (index != head_) {
@@ -100,7 +90,6 @@ public:
     }
 
     head_ = (head_ + Capacity - 1) % Capacity;
-    return true;
   }
 
   T *buffer_{};
