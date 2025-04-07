@@ -14,8 +14,8 @@
 
 template <uint8_t si, typename Condition, typename OrderMap>
 __attribute__((always_inline)) inline uint32_t
-process_orders(Order &order, std::stack<IdType *> &q, OrderMap &ordersMap,
-               OrderIdMap &idMap, PriceVolumeMap &pvm, OrderValidMap &ovm) {
+process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
+               PriceVolumeMap &pvm, OrderValidMap &ovm) {
   uint32_t matchCount = 0;
   auto it = ordersMap.begin();
   while (it != ordersMap.end() && order.quantity > 0 &&
@@ -39,7 +39,6 @@ process_orders(Order &order, std::stack<IdType *> &q, OrderMap &ordersMap,
       }
     }
     if (ordersAtPrice.empty()) {
-      q.push(it->second.buffer_);
       it = ordersMap.erase(it);
     } else
       ++it;
@@ -50,16 +49,17 @@ process_orders(Order &order, std::stack<IdType *> &q, OrderMap &ordersMap,
 uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
   uint32_t matchCount = 0;
   Order order = incoming; // Create a copy to modify the quantity
-
   if (order.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
     matchCount = process_orders<1, std::less<PriceType>>(
-        order, orderbook.frees, orderbook.sellOrders, orderbook.orders,
-        orderbook.volume, orderbook.ovalid);
+        order, orderbook.sellOrders, orderbook.orders, orderbook.volume,
+        orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      auto it =
-          orderbook.buyOrders.try_emplace(order.price, orderbook.frees).first;
+      auto it = orderbook.buyOrders
+                    .try_emplace(order.price,
+                                 orderbook.bfrees[order.price - 3500].data())
+                    .first;
       it->second.push(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][0] += order.quantity;
@@ -67,12 +67,14 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
   } else { // Side::SELL
     // For a SELL, match with buy orders priced at or above the order's price.
     matchCount = process_orders<0, std::greater<PriceType>>(
-        order, orderbook.frees, orderbook.buyOrders, orderbook.orders,
-        orderbook.volume, orderbook.ovalid);
+        order, orderbook.buyOrders, orderbook.orders, orderbook.volume,
+        orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      auto it =
-          orderbook.sellOrders.try_emplace(order.price, orderbook.frees).first;
+      auto it = orderbook.sellOrders
+                    .try_emplace(order.price,
+                                 orderbook.sfrees[order.price - 3500].data())
+                    .first;
       it->second.push(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][1] += order.quantity;
@@ -131,7 +133,7 @@ bool order_exists(Orderbook &orderbook, IdType order_id) {
 // good: 6
 
 Orderbook *create_orderbook() {
-  Orderbook *ob = new Orderbook();
+  Orderbook *ob = new (std::align_val_t{64}) Orderbook();
   madvise(ob, sizeof(Orderbook), MADV_WILLNEED | MADV_HUGEPAGE);
   return ob;
 }

@@ -33,7 +33,6 @@ struct Order {
 #include <cstddef>
 #include <optional>
 
-static constexpr std::size_t cap = 512;
 static constexpr std::size_t cap2 = 16;
 
 // Simple and performant fixed-size ring buffer
@@ -43,12 +42,7 @@ template <typename T, std::size_t Capacity> class ringbuf {
 public:
   static_assert(Capacity > 0, "Capacity must be greater than 0");
 
-  explicit ringbuf(std::stack<IdType *> &ptr) {
-    buffer_ = ptr.top();
-    ptr.pop();
-  }
-
-  ~ringbuf() {}
+  explicit ringbuf(IdType *ptr) : buffer_(ptr) {}
 
   void push(const T &item) {
     auto next_head = (head_ + 1) % Capacity;
@@ -113,14 +107,8 @@ struct Orderbook {
   alignas(64) OrderIdMap orders{};
   alignas(64) OrderValidMap ovalid{};
   alignas(64) PriceVolumeMap volume{};
-  alignas(64) std::array<std::array<IdType, cap2>, cap> frees2{};
-  alignas(64) std::stack<IdType *> frees;
-
-  Orderbook() {
-    for (std::size_t i = 0; i < cap; ++i) {
-      frees.push(frees2[i].data());
-    }
-  }
+  alignas(64) std::array<std::array<IdType, cap2>, 1024> bfrees{};
+  alignas(64) std::array<std::array<IdType, cap2>, 1024> sfrees{};
 };
 
 extern "C" {
