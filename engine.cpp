@@ -14,18 +14,16 @@
 
 template <uint8_t si, typename Condition, typename OrderMap>
 __attribute__((always_inline)) inline uint32_t
-process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
-               PriceVolumeMap &pvm, OrderValidMap &ovm) {
+process_orders(Order &order, std::stack<IdType *> &q, OrderMap &ordersMap,
+               OrderIdMap &idMap, PriceVolumeMap &pvm, OrderValidMap &ovm) {
   uint32_t matchCount = 0;
   auto it = ordersMap.begin();
-  while (
-      it != ordersMap.end() && order.quantity > 0 &&
-      ((si == 0) ? (it->first >= order.price) : (it->first <= order.price))) {
-    auto &ordersAtPrice = it->second;
+  while (it != ordersMap.end() && order.quantity > 0 &&
+         (Condition{}(it->first, order.price) || it->first == order.price)) {
+    OrderList &ordersAtPrice = it->second;
     auto &pvm2 = pvm[it->first];
-    for (auto orderIt = ordersAtPrice.begin();
-         orderIt != ordersAtPrice.end();) {
-      auto &order2 = idMap[*orderIt];
+    while (!ordersAtPrice.empty()) {
+      auto &order2 = idMap[ordersAtPrice.front()];
       QuantityType trade = std::min(order.quantity, order2.quantity);
       order.quantity -= trade;
       order2.quantity -= trade;
@@ -33,16 +31,17 @@ process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
       ++matchCount;
       if (order2.quantity == 0) {
         ovm[order2.id] = false;
-        orderIt = ordersAtPrice.erase(orderIt);
+        ordersAtPrice.pop();
         if (order.quantity == 0)
           break;
       } else {
         break;
       }
     }
-    if (ordersAtPrice.empty())
+    if (ordersAtPrice.empty()) {
+      q.push(it->second.buffer_);
       it = ordersMap.erase(it);
-    else
+    } else
       ++it;
   }
   return matchCount;
@@ -55,22 +54,30 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
   if (order.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
     matchCount = process_orders<1, std::less<PriceType>>(
-        order, orderbook.sellOrders, orderbook.orders, orderbook.volume,
-        orderbook.ovalid);
+        order, orderbook.frees, orderbook.sellOrders, orderbook.orders,
+        orderbook.volume, orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      orderbook.buyOrders[order.price].push_back(order.id);
+      auto it = orderbook.buyOrders.find(order.price);
+      if (it == orderbook.buyOrders.end()) {
+        it = orderbook.buyOrders.emplace(order.price, orderbook.frees).first;
+      }
+      it->second.push(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][0] += order.quantity;
     }
   } else { // Side::SELL
     // For a SELL, match with buy orders priced at or above the order's price.
     matchCount = process_orders<0, std::greater<PriceType>>(
-        order, orderbook.buyOrders, orderbook.orders, orderbook.volume,
-        orderbook.ovalid);
+        order, orderbook.frees, orderbook.buyOrders, orderbook.orders,
+        orderbook.volume, orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      orderbook.sellOrders[order.price].push_back(order.id);
+      auto it = orderbook.sellOrders.find(order.price);
+      if (it == orderbook.sellOrders.end()) {
+        it = orderbook.sellOrders.emplace(order.price, orderbook.frees).first;
+      }
+      it->second.push(order.id);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][1] += order.quantity;
     }
@@ -85,7 +92,7 @@ bool modify_order_in_map(Order &order, OrderValidMap &ordersMap, OrderMap &mp,
   if (new_quantity != 0) {
     order.quantity = new_quantity;
   } else {
-    std::erase(mp[order.price], order.id);
+    mp.find(order.price)->second.erase(order.id);
     ordersMap[order.id] = false;
   }
   return true;
@@ -130,5 +137,5 @@ bool order_exists(Orderbook &orderbook, IdType order_id) {
 Orderbook *create_orderbook() {
   Orderbook *ob = new Orderbook();
   madvise(ob, sizeof(Orderbook), MADV_WILLNEED | MADV_HUGEPAGE);
-  return new Orderbook;
+  return ob;
 }

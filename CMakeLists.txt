@@ -24,6 +24,7 @@ endif()
 
 find_package(absl REQUIRED)
 find_package(Boost REQUIRED)
+find_package(ring-span-lite REQUIRED)
 
 # Common compiler flags
 add_compile_options(
@@ -37,7 +38,7 @@ add_compile_options(
 # Create tests executable from tests.cpp and engine.cpp
 add_executable(tests tests.cpp engine.cpp)
 target_link_libraries(tests boost::boost)
-target_link_libraries(tests absl::base absl::throw_delegate absl::flat_hash_map)
+target_link_libraries(tests absl::base absl::throw_delegate absl::flat_hash_map nonstd::ring-span-lite)
 
 # Custom target to run tests after building
 add_custom_target(run_tests
@@ -49,7 +50,7 @@ add_custom_target(run_tests
 # Build a shared library from engine.cpp for submission
 add_library(engine_shared SHARED engine.cpp)
 target_link_libraries(engine_shared boost::boost)
-target_link_libraries(engine_shared absl::base absl::throw_delegate absl::flat_hash_map )
+target_link_libraries(engine_shared absl::base absl::throw_delegate absl::flat_hash_map nonstd::ring-span-lite)
 set_target_properties(engine_shared PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Custom target for submission: copy shared library to engine.so and run lll-bench
