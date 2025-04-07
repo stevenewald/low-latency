@@ -8,7 +8,6 @@
 #include <functional>
 #include <limits>
 
-
 enum class Side : uint8_t { BUY = 0, SELL = 1 };
 
 using IdType = uint32_t;
@@ -25,18 +24,20 @@ struct Order {
 
 using OrderList = std::vector<IdType>;
 using OrderIt = OrderList::iterator;
-using OrderIdMap = std::array<std::optional<Order>, 100000>;
+using OrderIdMap = std::array<Order, 10000>;
+using OrderValidMap = std::array<bool, 10000>;
 
 using PriceVolumeMap =
     std::array<uint32_t[2], std::numeric_limits<PriceType>::max()>;
 
 // You CAN and SHOULD change this
 struct Orderbook {
-  alignas(256) absl::btree_map<PriceType, OrderList,
-                               std::greater<PriceType>> buyOrders{};
-  alignas(256) absl::btree_map<PriceType, OrderList> sellOrders{};
-  alignas(256) OrderIdMap orders{};
-  alignas(256) PriceVolumeMap volume{};
+  alignas(64) absl::btree_map<PriceType, OrderList,
+                              std::greater<PriceType>> buyOrders{};
+  alignas(64) absl::btree_map<PriceType, OrderList> sellOrders{};
+  alignas(64) OrderIdMap orders{};
+  alignas(64) OrderValidMap ovalid{};
+  alignas(64) PriceVolumeMap volume{};
 };
 
 extern "C" {
