@@ -4,9 +4,11 @@
 #include <absl/container/btree_map.h>
 #include <absl/container/flat_hash_map.h>
 #include <array>
+#include <boost/container/flat_map.hpp>
 #include <boost/container/stable_vector.hpp>
 #include <cstdint>
 #include <functional>
+#include <immintrin.h>
 #include <iostream>
 #include <limits>
 #include <queue>
@@ -41,9 +43,6 @@ static constexpr std::size_t cap2 = 16;
 template <typename T, std::size_t Capacity> class ringbuf {
 public:
   static_assert(Capacity > 0, "Capacity must be greater than 0");
-
-  __attribute__((always_inline)) inline explicit ringbuf(IdType *ptr)
-      : buffer_(ptr) {}
 
   __attribute__((always_inline)) inline void push(T item) {
     auto next_head = (head_ + 1) % Capacity;
@@ -87,12 +86,82 @@ public:
     head_ = (head_ + Capacity - 1) % Capacity;
   }
 
-  T *buffer_{};
+  std::array<T, cap2> buffer_{};
   uint64_t head_ = 0;
   uint64_t tail_ = 0;
 };
 
 using OrderList = ringbuf<IdType, cap2>;
+
+template <std::size_t N> class Bitset {
+public:
+  static constexpr std::size_t BITS = 64;
+  static constexpr std::size_t WORDS = (N + BITS - 1) / BITS;
+
+  std::array<uint64_t, WORDS> data_{};
+
+  __attribute__((always_inline)) inline void set(std::size_t i) {
+    data_[i / BITS] |= 1ULL << (i % BITS);
+  }
+  __attribute__((always_inline)) inline void clear(std::size_t i) {
+    data_[i / BITS] &= ~(1ULL << (i % BITS));
+  }
+
+  __attribute__((always_inline)) inline std::size_t first_set() const {
+    for (std::size_t w = 0; w < WORDS; ++w) {
+      if (data_[w])
+        return w * BITS + __builtin_ctzll(data_[w]);
+    }
+    return N;
+  }
+
+  __attribute__((always_inline)) inline std::size_t last_set() const {
+    for (std::size_t w = WORDS; w-- > 0;) {
+      if (data_[w])
+        return w * BITS + (BITS - 1 - std::countl_zero(data_[w]));
+    }
+    return N;
+  }
+};
+
+template <bool Reverse> class alignas(64) OrderBookSide {
+public:
+  static constexpr size_t k = 1024;
+  static constexpr size_t offset = 3500;
+
+  std::array<OrderList, k> levels{};
+  Bitset<k> occupied{};
+
+  __attribute__((always_inline)) inline void add(const Order &o) {
+    occupied.set(o.price - offset);
+    levels[o.price - offset].push(o.id);
+  }
+  __attribute__((always_inline)) inline OrderList &get(PriceType p) {
+    return levels[p - offset];
+  }
+
+  __attribute__((always_inline)) inline void mark_mt(PriceType p) {
+    occupied.clear(p - offset);
+  }
+
+  __attribute__((always_inline)) inline std::pair<PriceType, OrderList *>
+  get_best() {
+    if constexpr (Reverse) {
+      auto N = occupied.last_set();
+      if (N < k) {
+        return std::pair{N + offset, &levels[N]};
+      }
+    }
+    if constexpr (!Reverse) {
+      auto N = occupied.first_set();
+      if (N < k) {
+        return std::pair{N + offset, &levels[N]};
+      }
+    }
+    return {0, nullptr};
+  }
+};
+
 using OrderIdMap = std::array<Order, 10000>;
 using OrderValidMap = std::array<bool, 10000>;
 using OrderSizeMap = std::array<bool, 10000>;
@@ -102,14 +171,11 @@ using PriceVolumeMap =
 
 // You CAN and SHOULD change this
 struct Orderbook {
-  alignas(64) absl::btree_map<PriceType, OrderList,
-                              std::greater<PriceType>> buyOrders{};
-  alignas(64) absl::btree_map<PriceType, OrderList> sellOrders{};
+  alignas(64) OrderBookSide<true> buyOrders{};
+  alignas(64) OrderBookSide<false> sellOrders{};
   alignas(64) OrderIdMap orders{};
   alignas(64) OrderValidMap ovalid{};
   alignas(64) PriceVolumeMap volume{};
-  alignas(64) std::array<std::array<IdType, cap2>, 1024> bfrees{};
-  alignas(64) std::array<std::array<IdType, cap2>, 1024> sfrees{};
 };
 
 extern "C" {

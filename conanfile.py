@@ -13,6 +13,7 @@ class Recipe(ConanFile):
         self.requires("boost/1.87.0")
         self.requires("abseil/20240116.2")
         self.requires("ring-span-lite/0.7.0")
+        self.requires("tsl-ordered-map/1.1.0")
         # self.requires("folly/2024.08.12.00")
 
     def configure(self):

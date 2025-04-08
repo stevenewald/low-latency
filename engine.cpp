@@ -12,18 +12,22 @@
 // The Condition predicate takes the price level and the incoming order price
 // and returns whether the level qualifies.
 
-template <uint8_t si, typename Condition, typename OrderMap>
+template <uint8_t si, typename Condition, typename T>
 __attribute__((always_inline)) inline uint32_t
-process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
+process_orders(Order &order, T &ordersMap, OrderIdMap &idMap,
                PriceVolumeMap &pvm, OrderValidMap &ovm) {
   uint32_t matchCount = 0;
-  auto it = ordersMap.begin();
-  while (it != ordersMap.end() && order.quantity > 0 &&
-         (Condition{}(it->first, order.price) || it->first == order.price)) {
-    OrderList &ordersAtPrice = it->second;
-    auto &pvm2 = pvm[it->first];
-    while (!ordersAtPrice.empty()) {
-      auto &order2 = idMap[ordersAtPrice.front()];
+  while (true) {
+    if (order.quantity == 0)
+      break;
+    auto [p, ordersAtPrice] = ordersMap.get_best();
+    if (p == 0)
+      break;
+    if (!(Condition{}(p, order.price) || p == order.price))
+      break;
+    auto &pvm2 = pvm[p];
+    do {
+      auto &order2 = idMap[ordersAtPrice->front()];
       QuantityType trade = std::min(order.quantity, order2.quantity);
       order.quantity -= trade;
       order2.quantity -= trade;
@@ -31,17 +35,18 @@ process_orders(Order &order, OrderMap &ordersMap, OrderIdMap &idMap,
       ++matchCount;
       if (order2.quantity == 0) {
         ovm[order2.id] = false;
-        ordersAtPrice.pop();
+        ordersAtPrice->pop();
         if (order.quantity == 0)
           break;
       } else {
         break;
       }
+    } while (!ordersAtPrice->empty());
+    if (!ordersAtPrice->empty()) {
+      break;
+    } else {
+      ordersMap.mark_mt(p);
     }
-    if (ordersAtPrice.empty()) {
-      it = ordersMap.erase(it);
-    } else
-      ++it;
   }
   return matchCount;
 }
@@ -56,11 +61,7 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
         orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      auto it = orderbook.buyOrders
-                    .try_emplace(order.price,
-                                 orderbook.bfrees[order.price - 3500].data())
-                    .first;
-      it->second.push(order.id);
+      orderbook.buyOrders.add(order);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][0] += order.quantity;
     }
@@ -71,11 +72,7 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
         orderbook.ovalid);
     if (order.quantity > 0) {
       orderbook.ovalid[order.id] = true;
-      auto it = orderbook.sellOrders
-                    .try_emplace(order.price,
-                                 orderbook.sfrees[order.price - 3500].data())
-                    .first;
-      it->second.push(order.id);
+      orderbook.sellOrders.add(order);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][1] += order.quantity;
     }
@@ -84,13 +81,17 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
 }
 
 // Templated helper to cancel an order within a given orders map.
-template <typename OrderMap>
-bool modify_order_in_map(Order &order, OrderValidMap &ordersMap, OrderMap &mp,
+
+template <typename T>
+bool modify_order_in_map(Order &order, OrderValidMap &ordersMap, T &mp,
                          QuantityType new_quantity) {
   if (new_quantity != 0) {
     order.quantity = new_quantity;
   } else {
-    mp.find(order.price)->second.erase(order.id);
+    auto &t = mp.get(order.price);
+    t.erase(order.id);
+    if (t.empty())
+      mp.mark_mt(order.price);
     ordersMap[order.id] = false;
   }
   return true;
