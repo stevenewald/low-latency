@@ -162,7 +162,7 @@ public:
   }
 };
 
-using OrderIdMap = std::array<Order, 10000>;
+using OrderIdMap = std::array<std::optional<Order>, 10000>;
 using OrderValidMap = std::array<bool, 10000>;
 using OrderSizeMap = std::array<bool, 10000>;
 
@@ -174,7 +174,6 @@ struct Orderbook {
   alignas(64) OrderBookSide<true> buyOrders{};
   alignas(64) OrderBookSide<false> sellOrders{};
   alignas(64) OrderIdMap orders{};
-  alignas(64) OrderValidMap ovalid{};
   alignas(64) PriceVolumeMap volume{};
 };
 
