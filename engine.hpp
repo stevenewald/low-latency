@@ -43,7 +43,7 @@ template <typename T, std::size_t Capacity> class ringbuf {
 public:
   static_assert(Capacity > 0, "Capacity must be greater than 0");
 
-  __attribute__((always_inline)) inline void push(T item) {
+  __attribute__((always_inline)) inline void push(const T &item) {
     auto next_head = (head_ + 1) % Capacity;
 
     buffer_[head_] = item;
@@ -54,8 +54,10 @@ public:
     tail_ = (tail_ + 1) % Capacity;
   }
 
-  __attribute__((always_inline)) inline T front() { return buffer_[tail_]; }
-  __attribute__((always_inline)) inline T next() {
+  __attribute__((always_inline)) inline T front() const {
+    return buffer_[tail_];
+  }
+  __attribute__((always_inline)) inline T next() const {
     return buffer_[(tail_ + 1) % Capacity];
   }
 
@@ -67,7 +69,7 @@ public:
     return (head_ + Capacity - tail_) % Capacity;
   }
 
-  __attribute__((always_inline)) inline void erase(T item) {
+  void erase(T item) {
     std::size_t index = tail_;
 
     for (std::size_t count = 0; count < size(); ++count) {
@@ -146,25 +148,25 @@ public:
     occupied.clear(p - offset);
   }
 
-  __attribute__((always_inline)) inline std::pair<PriceType, OrderList *>
+  __attribute__((always_inline)) inline std::pair<OrderList *, PriceType> const
   get_best() {
     if constexpr (Reverse) {
       auto N = occupied.last_set();
       if (N < k) [[likely]] {
-        return {N + offset, &levels[N]};
+        return {&levels[N], N + offset};
       }
     }
     if constexpr (!Reverse) {
       auto N = occupied.first_set();
       if (N < k) [[likely]] {
-        return {N + offset, &levels[N]};
+        return {&levels[N], N + offset};
       }
     }
-    return {0, nullptr};
+    return {nullptr, 0};
   }
 };
 
-using OrderIdMap = std::array<std::optional<Order>, 10000>;
+using OrderIdMap = std::array<Order, 10000 > ;
 using OrderValidMap = std::array<bool, 10000>;
 using OrderSizeMap = std::array<bool, 10000>;
 
@@ -177,6 +179,7 @@ struct Orderbook {
   alignas(64) OrderBookSide<false> sellOrders{};
   alignas(64) OrderIdMap orders{};
   alignas(64) PriceVolumeMap volume{};
+  alignas(64) OrderValidMap valid{};
 };
 
 extern "C" {

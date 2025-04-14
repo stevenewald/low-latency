@@ -14,24 +14,23 @@
 
 template <uint8_t si, typename Condition, typename T>
 __attribute__((always_inline)) inline uint32_t
-process_orders(Order &order, T &ordersMap, OrderIdMap &idMap,
-               PriceVolumeMap &pvm) {
+process_orders(Order &order, T &ordersMap, OrderValidMap &valid,
+               OrderIdMap &idMap, PriceVolumeMap &pvm) {
   uint32_t matchCount = 0;
   while (order.quantity > 0) {
-    auto [p, ordersAtPrice] = ordersMap.get_best();
-    if (p==0 || !(Condition{}(p, order.price) || p == order.price))
+    auto [ordersAtPrice, p] = ordersMap.get_best();
+    if (p == 0 || !(Condition{}(p, order.price) || p == order.price))
       break;
     auto &pvm2 = pvm[p];
     do {
       ++matchCount;
-      auto &order2_opt = idMap[ordersAtPrice->front()];
-      auto &order2 = *order2_opt;
+      auto &order2 = idMap[ordersAtPrice->front()];
       QuantityType trade = std::min(order.quantity, order2.quantity);
       order.quantity -= trade;
       order2.quantity -= trade;
       pvm2[si] -= trade;
       if (order2.quantity == 0) {
-        order2_opt = std::nullopt;
+        valid[order.id] = false;
         ordersAtPrice->pop();
         if (order.quantity == 0)
           break;
@@ -52,20 +51,24 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
   if (order.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
     matchCount = process_orders<1, std::less<PriceType>>(
-        order, orderbook.sellOrders, orderbook.orders, orderbook.volume);
+        order, orderbook.sellOrders, orderbook.valid, orderbook.orders,
+        orderbook.volume);
     if (order.quantity > 0) {
       orderbook.buyOrders.add(order);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][0] += order.quantity;
+      orderbook.valid[order.id] = true;
     }
   } else { // Side::SELL
     // For a SELL, match with buy orders priced at or above the order's price.
     matchCount = process_orders<0, std::greater<PriceType>>(
-        order, orderbook.buyOrders, orderbook.orders, orderbook.volume);
+        order, orderbook.buyOrders, orderbook.valid, orderbook.orders,
+        orderbook.volume);
     if (order.quantity > 0) {
       orderbook.sellOrders.add(order);
       orderbook.orders[order.id] = order;
       orderbook.volume[order.price][1] += order.quantity;
+      orderbook.valid[order.id] = true;
     }
   }
   return matchCount;
@@ -75,7 +78,7 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
 
 template <typename T>
 __attribute__((always_inline)) inline bool
-modify_order_in_map(Order &order, OrderIdMap &ordersMap, T &mp,
+modify_order_in_map(Order &order, OrderValidMap &ordersMap, T &mp,
                     QuantityType new_quantity) {
   if (new_quantity != 0) {
     order.quantity = new_quantity;
@@ -84,23 +87,23 @@ modify_order_in_map(Order &order, OrderIdMap &ordersMap, T &mp,
     t.erase(order.id);
     if (t.empty())
       mp.mark_mt(order.price);
-    ordersMap[order.id] = std::nullopt;
+    ordersMap[order.id] = false;
   }
   return true;
 }
 
 void modify_order_by_id(Orderbook &orderbook, IdType order_id,
                         QuantityType new_quantity) {
-  if (!orderbook.orders[order_id])
+  if (!orderbook.valid[order_id])
     return;
-  auto &order = *orderbook.orders[order_id];
+  auto &order = orderbook.orders[order_id];
   if (order.side == Side::BUY) {
     orderbook.volume[order.price][0] += (new_quantity - order.quantity);
-    modify_order_in_map(order, orderbook.orders, orderbook.buyOrders,
+    modify_order_in_map(order, orderbook.valid, orderbook.buyOrders,
                         new_quantity);
   } else {
     orderbook.volume[order.price][1] += (new_quantity - order.quantity);
-    modify_order_in_map(order, orderbook.orders, orderbook.sellOrders,
+    modify_order_in_map(order, orderbook.valid, orderbook.sellOrders,
                         new_quantity);
   }
 }
@@ -112,13 +115,13 @@ uint32_t get_volume_at_level(Orderbook &orderbook, Side side, PriceType price) {
 // Functions below here don't need to be performant. Just make sure they're
 // correct
 Order lookup_order_by_id(Orderbook &orderbook, IdType order_id) {
-  if (orderbook.orders[order_id])
-    return *orderbook.orders[order_id];
+  if (orderbook.valid[order_id])
+    return orderbook.orders[order_id];
   throw std::runtime_error("Order not found");
 }
 
 bool order_exists(Orderbook &orderbook, IdType order_id) {
-  return orderbook.orders[order_id].has_value();
+  return orderbook.valid[order_id];
 }
 
 // good: 6
