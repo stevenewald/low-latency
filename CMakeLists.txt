@@ -29,11 +29,12 @@ find_package(tsl-ordered-map REQUIRED)
 
 # Common compiler flags
 add_compile_options(
-  -Wall -Wextra -O3 -march=native
+  -Wall -Wextra -Ofast -march=native
   -flto -mtune=native -funroll-loops -ffast-math -fomit-frame-pointer
-  -fprefetch-loop-arrays -falign-functions=32 -falign-loops=32
+  -fprefetch-loop-arrays -falign-functions=64 -falign-loops=64
   -fno-stack-protector -fno-math-errno -fstrict-aliasing
   -fno-semantic-interposition -finline-functions -finline-limit=1000
+  -fno-exceptions
 )
 
 # Create tests executable from tests.cpp and engine.cpp

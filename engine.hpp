@@ -101,6 +101,7 @@ template <std::size_t N> class Bitset {
 public:
   static constexpr std::size_t BITS = 64;
   static constexpr std::size_t WORDS = (N) / BITS;
+  static constexpr auto ignore = 4;
 
   std::array<uint64_t, WORDS> data_{};
 
@@ -112,7 +113,7 @@ public:
   }
 
   __attribute__((always_inline)) inline std::size_t first_set() const {
-    for (std::size_t w = 1; w < WORDS; ++w) {
+    for (std::size_t w = ignore; w < WORDS; ++w) {
       if (data_[w])
         return w * BITS + __builtin_ctzll(data_[w]);
     }
@@ -120,7 +121,7 @@ public:
   }
 
   __attribute__((always_inline)) inline std::size_t last_set() const {
-    for (std::size_t w = WORDS; w-- > 0;) {
+    for (std::size_t w = WORDS - ignore; w-- > ignore;) {
       if (data_[w])
         return w * BITS + (BITS - 1 - std::countl_zero(data_[w]));
     }
@@ -166,12 +167,11 @@ public:
   }
 };
 
-using OrderIdMap = std::array<Order, 10000 > ;
-using OrderValidMap = std::array<bool, 10000>;
-using OrderSizeMap = std::array<bool, 10000>;
+using OrderIdMap = std::array<Order, 8192>;
+using OrderValidMap = std::array<bool, 8192>;
+using OrderSizeMap = std::array<bool, 8192>;
 
-using PriceVolumeMap =
-    std::array<uint32_t[2], std::numeric_limits<PriceType>::max()>;
+using PriceVolumeMap = std::array<uint32_t[2], 8192>;
 
 // You CAN and SHOULD change this
 struct Orderbook {
