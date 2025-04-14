@@ -17,23 +17,19 @@ __attribute__((always_inline)) inline uint32_t
 process_orders(Order &order, T &ordersMap, OrderIdMap &idMap,
                PriceVolumeMap &pvm) {
   uint32_t matchCount = 0;
-  while (true) {
-    if (order.quantity == 0)
-      break;
+  while (order.quantity > 0) {
     auto [p, ordersAtPrice] = ordersMap.get_best();
-    if (p == 0)
-      break;
-    if (!(Condition{}(p, order.price) || p == order.price))
+    if (p==0 || !(Condition{}(p, order.price) || p == order.price))
       break;
     auto &pvm2 = pvm[p];
     do {
+      ++matchCount;
       auto &order2_opt = idMap[ordersAtPrice->front()];
       auto &order2 = *order2_opt;
       QuantityType trade = std::min(order.quantity, order2.quantity);
       order.quantity -= trade;
       order2.quantity -= trade;
       pvm2[si] -= trade;
-      ++matchCount;
       if (order2.quantity == 0) {
         order2_opt = std::nullopt;
         ordersAtPrice->pop();
@@ -43,9 +39,7 @@ process_orders(Order &order, T &ordersMap, OrderIdMap &idMap,
         break;
       }
     } while (!ordersAtPrice->empty());
-    if (!ordersAtPrice->empty()) {
-      break;
-    } else {
+    if (ordersAtPrice->empty()) {
       ordersMap.mark_mt(p);
     }
   }
@@ -58,8 +52,7 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
   if (order.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
     matchCount = process_orders<1, std::less<PriceType>>(
-        order, orderbook.sellOrders, orderbook.orders, orderbook.volume
-        );
+        order, orderbook.sellOrders, orderbook.orders, orderbook.volume);
     if (order.quantity > 0) {
       orderbook.buyOrders.add(order);
       orderbook.orders[order.id] = order;
@@ -68,8 +61,7 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
   } else { // Side::SELL
     // For a SELL, match with buy orders priced at or above the order's price.
     matchCount = process_orders<0, std::greater<PriceType>>(
-        order, orderbook.buyOrders, orderbook.orders, orderbook.volume
-        );
+        order, orderbook.buyOrders, orderbook.orders, orderbook.volume);
     if (order.quantity > 0) {
       orderbook.sellOrders.add(order);
       orderbook.orders[order.id] = order;
@@ -82,8 +74,9 @@ uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
 // Templated helper to cancel an order within a given orders map.
 
 template <typename T>
-bool modify_order_in_map(Order &order, OrderIdMap &ordersMap, T &mp,
-                         QuantityType new_quantity) {
+__attribute__((always_inline)) inline bool
+modify_order_in_map(Order &order, OrderIdMap &ordersMap, T &mp,
+                    QuantityType new_quantity) {
   if (new_quantity != 0) {
     order.quantity = new_quantity;
   } else {
@@ -113,9 +106,7 @@ void modify_order_by_id(Orderbook &orderbook, IdType order_id,
 }
 
 uint32_t get_volume_at_level(Orderbook &orderbook, Side side, PriceType price) {
-  uint32_t total = 0;
   return orderbook.volume[price][static_cast<uint8_t>(side)];
-  return total;
 }
 
 // Functions below here don't need to be performant. Just make sure they're

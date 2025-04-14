@@ -1,6 +1,5 @@
 #pragma once
 
-#include "nonstd/ring_span.hpp"
 #include <absl/container/btree_map.h>
 #include <absl/container/flat_hash_map.h>
 #include <array>
@@ -56,6 +55,9 @@ public:
   }
 
   __attribute__((always_inline)) inline T front() { return buffer_[tail_]; }
+  __attribute__((always_inline)) inline T next() {
+    return buffer_[(tail_ + 1) % Capacity];
+  }
 
   __attribute__((always_inline)) inline bool empty() const {
     return head_ == tail_;
@@ -96,7 +98,7 @@ using OrderList = ringbuf<IdType, cap2>;
 template <std::size_t N> class Bitset {
 public:
   static constexpr std::size_t BITS = 64;
-  static constexpr std::size_t WORDS = (N + BITS - 1) / BITS;
+  static constexpr std::size_t WORDS = (N) / BITS;
 
   std::array<uint64_t, WORDS> data_{};
 
@@ -108,7 +110,7 @@ public:
   }
 
   __attribute__((always_inline)) inline std::size_t first_set() const {
-    for (std::size_t w = 0; w < WORDS; ++w) {
+    for (std::size_t w = 1; w < WORDS; ++w) {
       if (data_[w])
         return w * BITS + __builtin_ctzll(data_[w]);
     }
@@ -127,7 +129,7 @@ public:
 template <bool Reverse> class alignas(64) OrderBookSide {
 public:
   static constexpr size_t k = 1024;
-  static constexpr size_t offset = 3500;
+  static constexpr size_t offset = 3456;
 
   std::array<OrderList, k> levels{};
   Bitset<k> occupied{};
@@ -148,14 +150,14 @@ public:
   get_best() {
     if constexpr (Reverse) {
       auto N = occupied.last_set();
-      if (N < k) {
-        return std::pair{N + offset, &levels[N]};
+      if (N < k) [[likely]] {
+        return {N + offset, &levels[N]};
       }
     }
     if constexpr (!Reverse) {
       auto N = occupied.first_set();
-      if (N < k) {
-        return std::pair{N + offset, &levels[N]};
+      if (N < k) [[likely]] {
+        return {N + offset, &levels[N]};
       }
     }
     return {0, nullptr};
