@@ -33,8 +33,7 @@ add_compile_options(
   -flto -mtune=native -funroll-loops -ffast-math -fomit-frame-pointer
   -fprefetch-loop-arrays -falign-functions=64 -falign-loops=64
   -fno-stack-protector -fno-math-errno -fstrict-aliasing
-  -fno-semantic-interposition -finline-functions -finline-limit=1000
-  -fno-exceptions
+  -fno-semantic-interposition -finline-functions -finline-limit=1000 -fno-plt
 )
 
 # Create tests executable from tests.cpp and engine.cpp

@@ -101,7 +101,7 @@ template <std::size_t N> class Bitset {
 public:
   static constexpr std::size_t BITS = 64;
   static constexpr std::size_t WORDS = (N) / BITS;
-  static constexpr auto ignore = 4;
+  static constexpr std::size_t ignore = 5;
 
   std::array<uint64_t, WORDS> data_{};
 
@@ -132,21 +132,20 @@ public:
 template <bool Reverse> class alignas(64) OrderBookSide {
 public:
   static constexpr size_t k = 1024;
-  static constexpr size_t offset = 3456;
 
   std::array<OrderList, k> levels{};
   Bitset<k> occupied{};
 
   __attribute__((always_inline)) inline void add(const Order &o) {
-    occupied.set(o.price - offset);
-    levels[o.price - offset].push(o.id);
+    occupied.set(o.price);
+    levels[o.price].push(o.id);
   }
   __attribute__((always_inline)) inline OrderList &get(PriceType p) {
-    return levels[p - offset];
+    return levels[p];
   }
 
   __attribute__((always_inline)) inline void mark_mt(PriceType p) {
-    occupied.clear(p - offset);
+    occupied.clear(p);
   }
 
   __attribute__((always_inline)) inline std::pair<OrderList *, PriceType> const
@@ -154,24 +153,22 @@ public:
     if constexpr (Reverse) {
       auto N = occupied.last_set();
       if (N < k) [[likely]] {
-        return {&levels[N], N + offset};
+        return {&levels[N], N};
       }
     }
     if constexpr (!Reverse) {
       auto N = occupied.first_set();
       if (N < k) [[likely]] {
-        return {&levels[N], N + offset};
+        return {&levels[N], N};
       }
     }
     return {nullptr, 0};
   }
 };
 
-using OrderIdMap = std::array<Order, 8192>;
-using OrderValidMap = std::array<bool, 8192>;
-using OrderSizeMap = std::array<bool, 8192>;
-
-using PriceVolumeMap = std::array<uint32_t[2], 8192>;
+using OrderIdMap = std::array<Order, 10000>;
+using OrderValidMap = std::array<bool, 10000>;
+using PriceVolumeMap = std::array<uint32_t[2], 1024>;
 
 // You CAN and SHOULD change this
 struct Orderbook {

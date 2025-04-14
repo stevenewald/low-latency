@@ -30,17 +30,14 @@ process_orders(Order &order, T &ordersMap, OrderValidMap &valid,
       order2.quantity -= trade;
       pvm2[si] -= trade;
       if (order2.quantity == 0) {
-        valid[order.id] = false;
+        valid[order2.id] = false;
         ordersAtPrice->pop();
-        if (order.quantity == 0)
+        if (ordersAtPrice->empty()) {
+          ordersMap.mark_mt(p);
           break;
-      } else {
-        break;
+        }
       }
-    } while (!ordersAtPrice->empty());
-    if (ordersAtPrice->empty()) {
-      ordersMap.mark_mt(p);
-    }
+    } while (order.quantity > 0);
   }
   return matchCount;
 }
@@ -48,6 +45,7 @@ process_orders(Order &order, T &ordersMap, OrderValidMap &valid,
 uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
   uint32_t matchCount = 0;
   Order order = incoming; // Create a copy to modify the quantity
+  order.price -= 3456;
   if (order.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
     matchCount = process_orders<1, std::less<PriceType>>(
