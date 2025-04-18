@@ -32,7 +32,7 @@ struct Order {
 #include <cstddef>
 #include <optional>
 
-static constexpr std::size_t cap2 = 32;
+static constexpr std::size_t cap2 = 20;
 
 // Simple and performant fixed-size ring buffer
 // Assumes single producer / single consumer for simplicity and performance.
@@ -69,7 +69,7 @@ template <std::size_t N> class Bitset {
 public:
   static constexpr std::size_t BITS = 64;
   static constexpr std::size_t WORDS = (N) / BITS;
-  static constexpr std::size_t ignore = 1;
+  static constexpr std::size_t ignore = 0;
 
   std::array<uint64_t, WORDS> data_{};
 
@@ -97,15 +97,25 @@ public:
   }
 };
 
+template<bool Reverse>
+struct Comparator {
+    bool operator()(const PriceType& a, const PriceType& b) const {
+        if constexpr (Reverse)
+            return a > b;  // Descending order
+        else
+            return a < b;  // Ascending order (default)
+    }
+};
+
 template <bool Reverse> class alignas(64) OrderBookSide {
 public:
   static constexpr size_t k = 1024;
 
   std::array<OrderList, k> levels{};
-  Bitset<k> occupied{};
+  std::set<PriceType, Comparator<Reverse>> occupied{};
 
   __attribute__((always_inline)) inline void add(const Order &o) {
-    occupied.set(o.price);
+    occupied.insert(o.price);
     levels[o.price].push(o.id);
   }
   __attribute__((always_inline)) inline OrderList &get(PriceType p) {
@@ -113,22 +123,14 @@ public:
   }
 
   __attribute__((always_inline)) inline void mark_mt(PriceType p) {
-    occupied.clear(p);
+    occupied.erase(p);
   }
 
   __attribute__((always_inline)) inline std::pair<OrderList *, PriceType> const
   get_best() {
-    if constexpr (Reverse) {
-      auto N = occupied.last_set();
-      if (N < k) [[likely]] {
-        return {&levels[N], N};
-      }
-    }
-    if constexpr (!Reverse) {
-      auto N = occupied.first_set();
-      if (N < k) [[likely]] {
-        return {&levels[N], N};
-      }
+    auto N = occupied.begin();
+    if (N != occupied.end()) [[likely]] {
+      return {&levels[*N], *N};
     }
     return {nullptr, 0};
   }
