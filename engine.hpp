@@ -3,8 +3,6 @@
 #include <absl/container/btree_map.h>
 #include <absl/container/flat_hash_map.h>
 #include <array>
-#include <boost/container/flat_map.hpp>
-#include <boost/container/stable_vector.hpp>
 #include <cstdint>
 #include <functional>
 #include <immintrin.h>
@@ -34,7 +32,7 @@ struct Order {
 #include <cstddef>
 #include <optional>
 
-static constexpr std::size_t cap2 = 16;
+static constexpr std::size_t cap2 = 32;
 
 // Simple and performant fixed-size ring buffer
 // Assumes single producer / single consumer for simplicity and performance.
@@ -44,55 +42,27 @@ public:
   static_assert(Capacity > 0, "Capacity must be greater than 0");
 
   __attribute__((always_inline)) inline void push(const T &item) {
-    auto next_head = (head_ + 1) % Capacity;
-
-    buffer_[head_] = item;
-    head_ = next_head;
+      buffer_[ins++] = item;
   }
 
   __attribute__((always_inline)) inline void pop() {
-    tail_ = (tail_ + 1) % Capacity;
+    ++start;
   }
 
   __attribute__((always_inline)) inline T front() const {
-    return buffer_[tail_];
-  }
-  __attribute__((always_inline)) inline T next() const {
-    return buffer_[(tail_ + 1) % Capacity];
+    return buffer_[start];
   }
 
   __attribute__((always_inline)) inline bool empty() const {
-    return head_ == tail_;
+    return start == ins;
   }
-
-  __attribute__((always_inline)) inline std::size_t size() const {
-    return (head_ + Capacity - tail_) % Capacity;
-  }
-
-  void erase(T item) {
-    std::size_t index = tail_;
-
-    for (std::size_t count = 0; count < size(); ++count) {
-      if (buffer_[index] == item) {
-        break;
-      }
-      index = (index + 1) % Capacity;
-    }
-
-    while (index != head_) {
-      std::size_t next_index = (index + 1) % Capacity;
-      if (next_index != head_) {
-        buffer_[index] = buffer_[next_index];
-      }
-      index = next_index;
-    }
-
-    head_ = (head_ + Capacity - 1) % Capacity;
+  __attribute__((always_inline)) inline bool full() const {
+    return ins >= Capacity - 1;
   }
 
   std::array<T, cap2> buffer_{};
-  uint64_t head_ = 0;
-  uint64_t tail_ = 0;
+  uint64_t ins = 0;
+  uint64_t start = 0;
 };
 
 using OrderList = ringbuf<IdType, cap2>;
@@ -101,7 +71,7 @@ template <std::size_t N> class Bitset {
 public:
   static constexpr std::size_t BITS = 64;
   static constexpr std::size_t WORDS = (N) / BITS;
-  static constexpr std::size_t ignore = 5;
+  static constexpr std::size_t ignore = 1;
 
   std::array<uint64_t, WORDS> data_{};
 
@@ -113,7 +83,7 @@ public:
   }
 
   __attribute__((always_inline)) inline std::size_t first_set() const {
-    for (std::size_t w = ignore; w < WORDS; ++w) {
+    for (std::size_t w = ignore; w < WORDS - ignore; ++w) {
       if (data_[w])
         return w * BITS + __builtin_ctzll(data_[w]);
     }
@@ -123,7 +93,7 @@ public:
   __attribute__((always_inline)) inline std::size_t last_set() const {
     for (std::size_t w = WORDS - ignore; w-- > ignore;) {
       if (data_[w])
-        return w * BITS + (BITS - 1 - std::countl_zero(data_[w]));
+        return w * BITS + (BITS - 1 - __builtin_clzll(data_[w]));
     }
     return N;
   }
