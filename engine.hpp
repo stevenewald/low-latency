@@ -42,12 +42,10 @@ public:
   static_assert(Capacity > 0, "Capacity must be greater than 0");
 
   __attribute__((always_inline)) inline void push(const T &item) {
-      buffer_[ins++] = item;
+    buffer_[ins++] = item;
   }
 
-  __attribute__((always_inline)) inline void pop() {
-    ++start;
-  }
+  __attribute__((always_inline)) inline void pop() { ++start; }
 
   __attribute__((always_inline)) inline T front() const {
     return buffer_[start];
@@ -57,7 +55,7 @@ public:
     return start == ins;
   }
   __attribute__((always_inline)) inline bool full() const {
-    return ins >= Capacity - 1;
+    return ins == Capacity - 1;
   }
 
   std::array<T, cap2> buffer_{};
