@@ -25,14 +25,14 @@ process_orders(const Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,
       break;
     uint32_t &pvm2 = pvm[p][si];
     do {
-      if (!valid[ordersAtPrice->front()]) [[unlikely]] {
-        ordersAtPrice->pop();
-        if (ordersAtPrice->empty()) {
-          ordersMap.mark_mt(p);
-          break;
-        }
-        continue;
-      }
+      // if (!valid[ordersAtPrice->front()]) [[unlikely]] {
+      //   ordersAtPrice->pop();
+      //   if (ordersAtPrice->empty()) {
+      //     ordersMap.mark_mt(p);
+      //     break;
+      //   }
+      //   continue;
+      // }
       ++matchCount;
       auto &order2 = idMap[ordersAtPrice->front()];
       QuantityType trade = std::min(quantity, order2.quantity);
@@ -49,12 +49,13 @@ process_orders(const Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,
       }
     } while (quantity > 0);
   }
-  if (quantity > 0 && !om2.get(price).full()) [[unlikely]] {
+  if (quantity > 0) [[unlikely]] {
     Order o = {order.id, price, quantity, order.side};
-    om2.add(o);
-    idMap[order.id] = o;
-    valid[order.id] = true;
-    pvm[price][1 - si] += quantity;
+    if (om2.add(o)) {
+      idMap[order.id] = o;
+      valid[order.id] = true;
+      pvm[price][1 - si] += quantity;
+    }
   }
   return matchCount;
 }
