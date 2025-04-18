@@ -12,6 +12,10 @@
 // The Condition predicate takes the price level and the incoming order price
 // and returns whether the level qualifies.
 
+//*****************************************
+// franklin, stop looking at my submission
+//*****************************************
+
 template <uint8_t si, typename Condition, typename T, typename T2>
 __attribute__((always_inline, hot)) inline uint32_t
 process_orders(const Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,

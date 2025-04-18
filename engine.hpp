@@ -1,5 +1,7 @@
 #pragma once
 
+#include "set.hpp"
+#include "set2.hpp"
 #include <absl/container/btree_map.h>
 #include <absl/container/flat_hash_map.h>
 #include <array>
@@ -36,7 +38,7 @@ struct Order {
 // franklin, stop looking at my submission
 //*****************************************
 
-static constexpr std::size_t cap2 = 26;
+static constexpr std::size_t cap2 = 22;
 
 // Simple and performant fixed-size ring buffer
 // Assumes single producer / single consumer for simplicity and performance.
@@ -45,7 +47,7 @@ template <typename T, std::size_t Capacity> class ringbuf {
 public:
   static_assert(Capacity > 0, "Capacity must be greater than 0");
 
-  __attribute__((always_inline)) inline bool push(T item) {
+  __attribute__((always_inline, hot)) inline bool push(T item) {
     if (full()) {
       return false;
     }
@@ -53,16 +55,16 @@ public:
     return true;
   }
 
-  __attribute__((always_inline)) inline void pop() { ++start; }
+  __attribute__((always_inline, hot)) inline void pop() { ++start; }
 
-  __attribute__((always_inline)) inline T front() const {
+  __attribute__((always_inline, hot)) inline T front() const {
     return buffer_[start];
   }
 
-  __attribute__((always_inline)) inline bool empty() const {
+  __attribute__((always_inline, hot)) inline bool empty() const {
     return start == ins;
   }
-  __attribute__((always_inline)) inline bool full() const {
+  __attribute__((always_inline, hot)) inline bool full() const {
     return ins == Capacity;
   }
 
@@ -73,45 +75,47 @@ public:
 
 using OrderList = ringbuf<IdType, cap2>;
 
-template <std::size_t N> class Bitset {
+template <std::size_t N, bool Reverse> class Bitset {
 public:
   static constexpr std::size_t BITS = 64;
   static constexpr std::size_t WORDS = (N) / BITS;
   static constexpr std::size_t ignore = 0;
 
-  std::uint16_t cached_fst = -1;
-  std::uint16_t cached_lst = -1;
+  static constexpr uint16_t invalid = (Reverse) ? 0 : uint16_t(~0);
+  std::uint16_t cached = invalid;
 
   std::array<uint64_t, WORDS> data_{};
 
-  __attribute__((always_inline)) inline void insert(std::uint16_t i) {
+  __attribute__((always_inline, hot)) inline void insert(std::uint16_t i) {
     data_[i / BITS] |= 1ULL << (i % BITS);
-    cached_fst = std::min(i, cached_fst);
-    cached_lst = std::max(i, cached_lst);
+    if constexpr (Reverse) {
+      cached = std::max(i, cached);
+    }
+    if constexpr (!Reverse) {
+      cached = std::min(i, cached);
+    }
   }
-  __attribute__((always_inline)) inline void erase(std::uint16_t i) {
+  __attribute__((always_inline, hot)) inline void erase(std::uint16_t i) {
     data_[i / BITS] &= ~(1ULL << (i % BITS));
-    cached_fst = -1;
-    cached_lst = -1;
+    cached = invalid;
   }
 
-  __attribute__((always_inline)) inline std::uint16_t first_set() {
-    if (cached_fst != uint16_t(-1))
-      return cached_fst;
-    for (std::size_t w = ignore; w < WORDS - ignore; ++w) {
-      if (data_[w])
-        return cached_fst = w * BITS + __builtin_ctzll(data_[w]);
+  __attribute__((always_inline, hot)) inline std::uint16_t begin() {
+    if (cached != invalid)
+      return cached;
+    if constexpr (Reverse) {
+      for (std::size_t w = WORDS - ignore; w-- > ignore;) {
+        if (data_[w])
+          return cached = w * BITS + (BITS - 1 - __builtin_clzll(data_[w]));
+      }
     }
-    return N;
-  }
-
-  __attribute__((always_inline)) inline std::uint16_t last_set() {
-    if (cached_lst != uint16_t(-1))
-      return cached_lst;
-    for (std::size_t w = WORDS - ignore; w-- > ignore;) {
-      if (data_[w])
-        return cached_lst = w * BITS + (BITS - 1 - __builtin_clzll(data_[w]));
+    if constexpr (!Reverse) {
+      for (std::size_t w = ignore; w < WORDS - ignore; ++w) {
+        if (data_[w])
+          return cached = w * BITS + __builtin_ctzll(data_[w]);
+      }
     }
+    cached = invalid;
     return N;
   }
 };
@@ -131,36 +135,31 @@ public:
 
   std::array<OrderList, k> levels{};
   // std::set<PriceType, Comparator<Reverse>> occupied{};
-  Bitset<k> occupied;
+  // FastSet<PriceType, Comparator<Reverse>> occupied{};
+  SortedSet<PriceType, Comparator<Reverse>, k> occupied{};
+  // Bitset<k, Reverse> occupied;
 
-  __attribute__((always_inline)) inline bool add(const Order &o) {
+  __attribute__((always_inline, hot)) inline bool add(const Order &o) {
     if (levels[o.price].push(o.id)) {
       occupied.insert(o.price);
       return true;
     }
     return false;
   }
-  __attribute__((always_inline)) inline OrderList &get(PriceType p) {
+  __attribute__((always_inline, hot)) inline OrderList &get(PriceType p) {
     return levels[p];
   }
 
-  __attribute__((always_inline)) inline void mark_mt(PriceType p) {
+  __attribute__((always_inline, hot)) inline void mark_mt(PriceType p) {
     occupied.erase(p);
   }
 
-  __attribute__((always_inline)) inline std::pair<OrderList *, PriceType> const
+  __attribute__((always_inline,
+                 hot)) inline std::pair<OrderList *, PriceType> const
   get_best() {
-    if constexpr (Reverse) {
-      auto N = occupied.last_set();
-      if (N != k) [[likely]] {
-        return {&levels[N], N};
-      }
-    }
-    if constexpr (!Reverse) {
-      auto N = occupied.first_set();
-      if (N != k) [[likely]] {
-        return {&levels[N], N};
-      }
+    auto N = occupied.begin();
+    if (N != occupied.end()) [[likely]] {
+      return {&levels[*N], *N};
     }
     return {nullptr, 0};
   }
