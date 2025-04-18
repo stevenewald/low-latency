@@ -14,27 +14,29 @@
 
 template <uint8_t si, typename Condition, typename T, typename T2>
 __attribute__((always_inline, hot)) inline uint32_t
-process_orders(Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,
+process_orders(const Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,
                OrderIdMap &idMap, PriceVolumeMap &pvm) {
+  QuantityType quantity = order.quantity;
+  PriceType price = order.price - 3456;
   uint32_t matchCount = 0;
-  while (order.quantity > 0) {
+  while (quantity > 0) {
     auto [ordersAtPrice, p] = ordersMap.get_best();
-    if (p == 0 || !(Condition{}(p, order.price)))
+    if (p == 0 || !(Condition{}(p, price)))
       break;
     uint32_t &pvm2 = pvm[p][si];
     do {
-      // if (!valid[ordersAtPrice->front()]) [[unlikely]] {
-      //   ordersAtPrice->pop();
-      //   if (ordersAtPrice->empty()) {
-      //     ordersMap.mark_mt(p);
-      //     break;
-      //   }
-      //   continue;
-      // }
+      if (!valid[ordersAtPrice->front()]) [[unlikely]] {
+        ordersAtPrice->pop();
+        if (ordersAtPrice->empty()) {
+          ordersMap.mark_mt(p);
+          break;
+        }
+        continue;
+      }
       ++matchCount;
       auto &order2 = idMap[ordersAtPrice->front()];
-      QuantityType trade = std::min(order.quantity, order2.quantity);
-      order.quantity -= trade;
+      QuantityType trade = std::min(quantity, order2.quantity);
+      quantity -= trade;
       order2.quantity -= trade;
       pvm2 -= trade;
       if (order2.quantity == 0) {
@@ -45,29 +47,28 @@ process_orders(Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,
           break;
         }
       }
-    } while (order.quantity > 0);
+    } while (quantity > 0);
   }
-  if (order.quantity > 0 && !om2.get(order.price).full()) [[unlikely]] {
-    om2.add(order);
-    idMap[order.id] = order;
+  if (quantity > 0 && !om2.get(price).full()) [[unlikely]] {
+    Order o = {order.id, price, quantity, order.side};
+    om2.add(o);
+    idMap[order.id] = o;
     valid[order.id] = true;
-    pvm[order.price][si] += order.quantity;
+    pvm[price][1 - si] += quantity;
   }
   return matchCount;
 }
 
 uint32_t match_order(Orderbook &orderbook, const Order &incoming) {
-  Order order = incoming; // Create a copy to modify the quantity
-  order.price -= 3456;
-  if (order.side == Side::BUY) {
+  if (incoming.side == Side::BUY) {
     // For a BUY, match with sell orders priced at or below the order's price.
     return process_orders<1, std::less_equal<PriceType>>(
-        order, orderbook.sellOrders, orderbook.buyOrders, orderbook.valid,
+        incoming, orderbook.sellOrders, orderbook.buyOrders, orderbook.valid,
         orderbook.orders, orderbook.volume);
   } else { // Side::SELL
     // For a SELL, match with buy orders priced at or above the order's price.
     return process_orders<0, std::greater_equal<PriceType>>(
-        order, orderbook.buyOrders, orderbook.sellOrders, orderbook.valid,
+        incoming, orderbook.buyOrders, orderbook.sellOrders, orderbook.valid,
         orderbook.orders, orderbook.volume);
   }
 }
