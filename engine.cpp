@@ -12,10 +12,6 @@
 // The Condition predicate takes the price level and the incoming order price
 // and returns whether the level qualifies.
 
-//*****************************************
-// franklin, stop looking at my submission
-//*****************************************
-
 template <uint8_t si, typename Condition, typename T, typename T2>
 __attribute__((always_inline, hot)) inline uint32_t
 process_orders(const Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,
@@ -29,14 +25,14 @@ process_orders(const Order &order, T &ordersMap, T2 &om2, OrderValidMap &valid,
       break;
     uint32_t &pvm2 = pvm[p][si];
     do {
-      // if (!valid[ordersAtPrice->front()]) [[unlikely]] {
-      //   ordersAtPrice->pop();
-      //   if (ordersAtPrice->empty()) {
-      //     ordersMap.mark_mt(p);
-      //     break;
-      //   }
-      //   continue;
-      // }
+      if (!valid[ordersAtPrice->front()]) [[unlikely]] {
+        ordersAtPrice->pop();
+        if (ordersAtPrice->empty()) {
+          ordersMap.mark_mt(p);
+          break;
+        }
+        continue;
+      }
       ++matchCount;
       auto &order2 = idMap[ordersAtPrice->front()];
       QuantityType trade = std::min(quantity, order2.quantity);

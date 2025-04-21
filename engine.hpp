@@ -34,11 +34,7 @@ struct Order {
 #include <cstddef>
 #include <optional>
 
-//*****************************************
-// franklin, stop looking at my submission
-//*****************************************
-
-static constexpr std::size_t cap2 = 22;
+static constexpr std::size_t cap2 = 20;
 
 // Simple and performant fixed-size ring buffer
 // Assumes single producer / single consumer for simplicity and performance.
