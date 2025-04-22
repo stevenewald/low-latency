@@ -12,12 +12,8 @@ public:
 
   SortedSet() noexcept : size_(0) {}
 
-  // Copy-insert
   bool insert(T value) { return emplace(value); }
-  // Move-insert
-  // bool insert(const T& value) { return emplace(std::move(value)); }
 
-  // Erase value if present.
   bool erase(const T &value) {
     T *begin = data_.data();
     T *end = begin + size_;
@@ -36,14 +32,12 @@ public:
   bool empty() const noexcept { return size_ == 0; }
   bool full() const noexcept { return size_ == N; }
 
-  // Iterators
   T *begin() noexcept { return data_.data(); }
   T *end() noexcept { return data_.data() + size_; }
   const T *begin() const noexcept { return data_.data(); }
   const T *end() const noexcept { return data_.data() + size_; }
 
 private:
-  // Generic emplace for copy/move
   template <typename U> bool emplace(U &&value) {
     if (size_ >= N)
       return false;
@@ -52,7 +46,6 @@ private:
     T *it = std::lower_bound(begin, end, value, comp_);
     if (it != end && !comp_(value, *it) && !comp_(*it, value))
       return false;
-    // shift elements right in one call
     std::move_backward(it, end, end + 1);
     *it = std::forward<U>(value);
     ++size_;
